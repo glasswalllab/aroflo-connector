@@ -1,0 +1,38 @@
+{
+    "name": "glasswalllab/arofloconnector",
+    "description": "Connection to Aroflo",
+    "keywords": [
+        "glasswalllab",
+        "Aroflo"
+    ],
+    "homepage": "https://github.com/glasswalllab/aroflo-connector",
+    "license": "MIT",
+    "type": "library",
+    "authors": [
+        {
+            "name": "Stephen Reid",
+            "email": "sreid@gwlab.com.au",
+            "role": "Developer"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+          "glasswalllab\\arofloconnector\\": "src"
+        }
+      },
+
+      "extra": {
+        "laravel": {
+            "providers": [
+                "glasswalllab\\arofloconnector\\ArofloConnectorServiceProvider"
+            ]
+        }
+    },
+
+    "require-dev": {
+        "orchestra/testbench": "^6.0"
+    },
+    "require": {
+        "guzzlehttp/guzzle": "^7.3"
+    }
+}
