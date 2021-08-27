@@ -8,23 +8,48 @@ use glasswalllab\arofloconnector\Models\ApiLog;
 
 class ArofloConnector
 {
-    const CONTENT_TYPE = 'application/json';
-    const LIMIT = 100;
+    const CONTENT_TYPE = 'application/x-www-form-urlencoded';
+    const ACCEPT_TYPE = 'text/json';
+
+    const LIMIT = 500;
 
     private $page = 2; //Set to 2 as the first call is already completed
 
-    protected function getHeaders()
-    {
-        return [
-            'Content-Type' => self::CONTENT_TYPE,
-            'api-auth-accountid' => config('ArofloConnector.accountid'),
-            'api-auth-applicationkey' => config('ArofloConnector.applicationkey')
-        ];
-    }
-
-    public function CallAroflo($endpoint,$method, array $parameters)
+    public function CallAroflo($endpoint, $method, $parameters)
     {  
-        $url = config('ArofloConnector.baseUrl').$endpoint;
+        $zone = urlencode($endpoint);
+        $postxml = urlencode($parameters);
+        $postfields = "zone=".$zone."&postxml=".$postxml;
+        $requestType = strtoupper($method);
+        $authorisation = "uencoded=".urlencode(config('ArofloConnector.uencode'))."&pencoded=".urlencode(config('ArofloConnector.applicationkey'))."&orgEncoded=".urlencode(config('ArofloConnector.orgencode'));
+        $accept = self::ACCEPT_TYPE;
+        $contentType = self::CONTENT_TYPE;
+        $urlPath = '';
+        date_default_timezone_set('UTC');
+        $afdatetimeutc = date("Y-m-d\TH:i:s.u\Z", time());
+        
+        $payload = array();
+        array_push($payload,$requestType);
+        array_push($payload,$urlPath);
+        array_push($payload,$accept);
+        array_push($payload,$authorisation);
+        array_push($payload,$afdatetimeutc);
+        array_push($payload,$postfields);
+        $payloadString = implode('+',$payload);
+
+        $hmac = hash_hmac('sha512',$payloadString,config('ArofloConnector.secret'));
+
+        $url = config('ArofloConnector.baseUrl');
+
+        $header = [
+            'Authentication: HMAC '.$hmac,
+            'Authorization: '.$authorisation,
+            'Accept: '.$accept,
+            'afdatetimeutc: '.$afdatetimeutc,
+            'Content-Type: '.$contentType
+        ];
+
+        dd($header);
         
         $responses = [];
         $method = strtoupper($method);
@@ -37,7 +62,7 @@ class ArofloConnector
                 $log = ApiLog::create([
                     'resource' => $url,
                     'method' => $method,
-                    'request' => json_encode($parameters),
+                    'request' => json_encode($postxml),
                 ]);
 
                 $baseCall = Http::withHeaders($this->getHeaders())->retry(3, 500)->acceptJson();
