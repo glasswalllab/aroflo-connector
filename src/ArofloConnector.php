@@ -15,10 +15,10 @@ class ArofloConnector
 
     private $page = 2; //Set to 2 as the first call is already completed
 
-    public function CallAroflo($endpoint, $method, $parameters)
+    public function CallAroflo($zone, $join, $where, $postxml, $method)
     {  
-        $zone = urlencode($endpoint);
-        $postxml = urlencode($parameters);
+        $zone = urlencode($zone);
+        $postxml = urlencode($postxml);
         $postfields = "zone=".$zone."&postxml=".$postxml;
         $requestType = strtoupper($method);
         $authorisation = "uencoded=".urlencode(config('ArofloConnector.uencode'))."&pencoded=".urlencode(config('ArofloConnector.applicationkey'))."&orgEncoded=".urlencode(config('ArofloConnector.orgencode'));
