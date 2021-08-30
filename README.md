@@ -33,6 +33,7 @@ AROFLO_BASE_API_URL=https://api.aroflo.com/
 ### Sample Usage (Laravel)
 
 ```php
+use glasswalllab\arofloconnector\ArofloConnector;
 
 //Get Task Types - with joins and were clauses
 $aroflo = new ArofloConnector();
