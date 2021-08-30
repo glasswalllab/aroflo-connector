@@ -16,8 +16,9 @@ class ArofloConnector
     private $authoisation;
     private $afdatetimeutc;
 
-    public function getPostfields($zone,array $joins, array $wheres, $page) {
+    public function getPostfields($zone,array $joins, array $wheres,$page,$postxml) {
         $this->setAfdatetimeutc();
+
         $zone = urlencode($zone);
 
         $joins_string = '';
@@ -37,7 +38,17 @@ class ArofloConnector
             }
         }
 
-        return 'zone='.$zone.$joins_string.$wheres_string.'&page='.$page;
+        $page_string = '';
+        if(!is_null($page) || $page === '') {
+            $page_string = '&page='.$page;
+        }
+
+        $postxml_string = '';
+        if(!is_null($postxml) || $postxml === '') {
+            $postxml_string = '&postxml='.$postxml;
+        }
+
+        return 'zone='.$zone.$joins_string.$wheres_string.$page_string.$postxml_string;
     }
 
     public function generateHMAC($method,$postfields) {
@@ -90,40 +101,44 @@ class ArofloConnector
         {
             //POST or PUT request - contains parameter data, no pagination required - return array
             if ($method === 'POST' || $method === 'PUT' || $method === 'PATCH' || $method === 'DELETE') {
-                dd($postxml);
+
+                $postfields = $this->getPostfields($zone,$joins,$wheres,$page,$postxml);
+                $hmac = $this->generateHMAC($method,$postfields);
+                $header = $this->getHeader($hmac);
+
                 $log = ApiLog::create([
                     'resource' => $this->getUrl(),
                     'method' => $method,
-                    'request' => json_encode($postxml),
+                    'request' => json_encode($postfields),
                 ]);
 
-                $baseCall = Http::withHeaders($this->getHeaders())->retry(3, 500)->acceptJson();
+                $baseCall = Http::withHeaders($header)->retry(3, 500);
 
                 switch($method) {
                     case 'POST':
-                        $responses = $baseCall->post($this->getUrl(),$parameters)->body();
+                        $responses = $baseCall->withBody($postfields,self::CONTENT_TYPE)->post($this->getUrl())->body();
                     break;
 
                     case 'PUT':
-                        $responses = $baseCall->put($this->getUrl(),$parameters)->body();
+                        $responses = $baseCall->withBody($postfields,self::CONTENT_TYPE)->put($this->getUrl())->body();
                     break;
 
                     case 'PATCH':
-                        $responses = $baseCall->patch($this->getUrl(),$parameters)->body();
+                        $responses = $baseCall->withBody($postfields,self::CONTENT_TYPE)->patch($this->getUrl())->body();
                     break;
 
                     case 'DELETE':
-                        $responses = $baseCall->delete($this->getUrl(),$parameters)->body();
+                        $responses = $baseCall->withBody($postfields,self::CONTENT_TYPE)->delete($this->getUrl())->body();
                     break;
                 }
-                
+                $log->code = json_decode($responses)->status;
                 $log->response = $responses;
                 $log->save();
 
             //GET request - check for pagination - return array    
             } elseif($method === 'GET') {
 
-                $postfields = $this->getPostfields($zone,$joins,$wheres,$page);
+                $postfields = $this->getPostfields($zone,$joins,$wheres,$page,'');
                 $hmac = $this->generateHMAC($method,$postfields);
                 $header = $this->getHeader($hmac);
                 
@@ -136,6 +151,7 @@ class ArofloConnector
                 $response = Http::withHeaders($header)->retry(3, 500)->get($this->getUrl(),$postfields)->body();
                 $log_first_call->response = $response;
                 
+                $log_first_call->code = json_decode($response)->status;
                 $log_first_call->save();
 
                 $json = json_decode($response);
@@ -151,7 +167,7 @@ class ArofloConnector
                             //Start for loop at 2, as page 1 has already been retrieved - ceil = rounds up to nearest whole number             
                             for($i=$this->page;$i<=(ceil($total/self::LIMIT)); $i++)
                             {
-                                $postfields = $this->getPostfields($zone,$joins,$wheres,$this->page);
+                                $postfields = $this->getPostfields($zone,$joins,$wheres,$this->page,'');
                                 $hmac = $this->generateHMAC($method,$postfields);
                                 $header = $this->getHeader($hmac);
 
@@ -165,6 +181,7 @@ class ArofloConnector
 
                                 $response = Http::withHeaders($header)->retry(3, 500)->get($this->getUrl(),$postfields)->body();
                                 $log_additional_call->response = $response;
+                                $log_additional_call = json_decode($response)->status;
                                 $log_additional_call->save();
                                 $json = json_decode($response);
 
