@@ -90,7 +90,7 @@ class ArofloConnector
         {
             //POST or PUT request - contains parameter data, no pagination required - return array
             if ($method === 'POST' || $method === 'PUT' || $method === 'PATCH' || $method === 'DELETE') {
-
+                dd($postxml);
                 $log = ApiLog::create([
                     'resource' => $this->getUrl(),
                     'method' => $method,
