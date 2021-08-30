@@ -10,18 +10,14 @@ class ArofloConnector
 {
     const CONTENT_TYPE = 'application/x-www-form-urlencoded';
     const ACCEPT_TYPE = 'text/json';
-
     const LIMIT = 500;
 
     private $page = 2; //Set to 2 as the first call is already completed
+    private $authoisation;
+    private $afdatetimeutc;
 
-    public function CallAroflo($zone, $joins, $wheres, $postxml, $method, $page)
-    {  
-        $uEncode = config('ArofloConnector.uencode');
-        $keyId = config('ArofloConnector.applicationkey');
-        $secret = config('ArofloConnector.secret');
-        $orgEncode = config('ArofloConnector.orgencode');
-
+    public function getPostfields($zone,array $joins, array $wheres, $page) {
+        $this->setAfdatetimeutc();
         $zone = urlencode($zone);
 
         $joins_string = '';
@@ -41,106 +37,63 @@ class ArofloConnector
             }
         }
 
-        $postfields = 'zone='.$zone.$joins_string.$wheres_string.'&page='.$page;
-        $requestType = $method;
-        $authorisation = "uencoded=".urlencode(config('ArofloConnector.uencode'))."&pencoded=".urlencode(config('ArofloConnector.applicationkey'))."&orgEncoded=".urlencode($orgEncode);
-      
-        $accept = 'text/json';
-        $contentType = 'application/x-www-form-urlencoded';
-        $urlPath = '';
-        date_default_timezone_set('UTC');
-        $afdatetimeutc = date("Y-m-d\TH:i:s.u\Z", time());
-      
-        $payload = array();
-        array_push($payload,$requestType);
-        array_push($payload,$urlPath);
-        array_push($payload,$accept);
-        array_push($payload,$authorisation);
-        array_push($payload,$afdatetimeutc);
-        array_push($payload,$postfields);
-        $payloadString = implode('+',$payload);
-      
-        $hmac = hash_hmac('sha512',$payloadString,$secret);
+        return 'zone='.$zone.$joins_string.$wheres_string.'&page='.$page;
+    }
 
-        $header = [
-            'Authentication' => 'HMAC '.$hmac,
-            'Authorization' => $authorisation,
-            'Accept' => $accept,
-            'afdatetimeutc' => $afdatetimeutc,
-            'Content-Type' => $contentType
-        ];
-      
-        $url = config('ArofloConnector.baseUrl').'?'.$postfields;
-        $response = Http::withHeaders($header)->retry(3, 500)->get($url)->body();
+    public function generateHMAC($method,$postfields) {
 
-        dd($response);
-
-
-        //Need to move the above into the below
-        dd("end");
-
-        $zone = urlencode($zone);
-        $postxml = urlencode($postxml);
-        $requestType = strtoupper($method);
-        $authorisation = "uencoded=".urlencode(config('ArofloConnector.uencode'))."&pencoded=".urlencode(config('ArofloConnector.applicationkey'))."&orgEncoded=".urlencode(config('ArofloConnector.orgencode'));
-        
         $accept = self::ACCEPT_TYPE;
-        $contentType = self::CONTENT_TYPE;
         $urlPath = '';
-        date_default_timezone_set('UTC');
-        $afdatetimeutc = date("Y-m-d\TH:i:s.u\Z", time());
         
-        $joins_string = '';
-        if(sizeof($joins) > 0){
-            $joins_string = '&joins='.implode("",$joins);
-        }
-
-        $wheres_string = '';
-        if(sizeof($wheres) > 0){
-            foreach($wheres as $index => $where)
-            {
-                if($index === array_key_last($wheres)){
-                    $wheres_string = $wheres_string.'&where='.$where;
-                } else {
-                    $wheres_string = $wheres_string.'&where='.$where.',';
-                }
-            }
-        }
-
-        $postfields = 'zone='.$zone.$joins_string.$wheres_string.'&page='.$page;
-
         $payload = array();
-        array_push($payload,$requestType);
+        array_push($payload,$method);
         array_push($payload,$urlPath);
         array_push($payload,$accept);
-        array_push($payload,$authorisation);
-        array_push($payload,$afdatetimeutc);
+        array_push($payload,$this->authorisation);
+        array_push($payload,$this->afdatetimeutc);
         array_push($payload,$postfields);
-
         $payloadString = implode('+',$payload);
+        
+        return hash_hmac('sha512',$payloadString,config('ArofloConnector.secret'));
+    }
 
-        $hmac = hash_hmac('sha512',$payloadString,config('ArofloConnector.secret'));
+    public function setAuthorisation() {
+        $this->authorisation = $authorisation = "uencoded=".urlencode(config('ArofloConnector.uencode'))."&pencoded=".urlencode(config('ArofloConnector.applicationkey'))."&orgEncoded=".urlencode(config('ArofloConnector.orgencode'));
+    }
 
-        $url = config('ArofloConnector.baseUrl');
+    public function setAfdatetimeutc() {
+        date_default_timezone_set('UTC');
+        $this->afdatetimeutc = date("Y-m-d\TH:i:s.u\Z", time()); 
+    }
 
-        $header = [
+    public function getHeader($hmac) {
+        return [
             'Authentication' => 'HMAC '.$hmac,
-            'Authorization' => $authorisation,
-            'Accept' => $accept,
-            'afdatetimeutc' => $afdatetimeutc,
-            'Content-Type' => $contentType
+            'Authorization' => $this->authorisation,
+            'Accept' => self::ACCEPT_TYPE,
+            'afdatetimeutc' => $this->afdatetimeutc,
+            'Content-Type' => self::CONTENT_TYPE
         ];
-  
+    }
+
+    public function getUrl() {
+        return config('ArofloConnector.baseUrl');
+    }
+
+    public function CallAroflo($zone, $joins, $wheres, $postxml, $method, $page)
+    {  
+        $this->setAuthorisation();
+ 
         $responses = [];
         
         try
         {
             //POST or PUT request - contains parameter data, no pagination required - return array
-            if ($requestType === 'POST' || $requestType === 'PUT' || $requestType === 'PATCH' || $requestType === 'DELETE') {
+            if ($method === 'POST' || $method === 'PUT' || $method === 'PATCH' || $method === 'DELETE') {
 
                 $log = ApiLog::create([
-                    'resource' => $url,
-                    'method' => $requestType,
+                    'resource' => $this->getUrl(),
+                    'method' => $method,
                     'request' => json_encode($postxml),
                 ]);
 
@@ -148,19 +101,19 @@ class ArofloConnector
 
                 switch($method) {
                     case 'POST':
-                        $responses = $baseCall->post($url,$parameters)->body();
+                        $responses = $baseCall->post($this->getUrl(),$parameters)->body();
                     break;
 
                     case 'PUT':
-                        $responses = $baseCall->put($url,$parameters)->body();
+                        $responses = $baseCall->put($this->getUrl(),$parameters)->body();
                     break;
 
                     case 'PATCH':
-                        $responses = $baseCall->patch($url,$parameters)->body();
+                        $responses = $baseCall->patch($this->getUrl(),$parameters)->body();
                     break;
 
                     case 'DELETE':
-                        $responses = $baseCall->delete($url,$parameters)->body();
+                        $responses = $baseCall->delete($this->getUrl(),$parameters)->body();
                     break;
                 }
                 
@@ -168,24 +121,28 @@ class ArofloConnector
                 $log->save();
 
             //GET request - check for pagination - return array    
-            } elseif($requestType === 'GET') {
+            } elseif($method === 'GET') {
+
+                $postfields = $this->getPostfields($zone,$joins,$wheres,$page);
+                $hmac = $this->generateHMAC($method,$postfields);
+                $header = $this->getHeader($hmac);
                 
                 $log_first_call = ApiLog::create([
-                    'resource' => $url,
-                    'method' => $requestType,
+                    'resource' => $this->getUrl(),
+                    'method' => $method,
                     'request' => $postfields,
                 ]);
-                $url = $url.'?'.$postfields;
               
-                $response = Http::withHeaders($header)->retry(3, 500)->get($url)->body();
+                $response = Http::withHeaders($header)->retry(3, 500)->get($this->getUrl(),$postfields)->body();
                 $log_first_call->response = $response;
+                
                 $log_first_call->save();
 
-                dd($response);
+                $json = json_decode($response);
 
                 //Check total items, returned with first call
                 if(!is_null($json)) {
-                    $total = $json->Total;
+                    $total = $json->zoneresponse->currentpageresults;
 
                     if(isset($total)) {
                         $responses[] = $response;
@@ -194,22 +151,33 @@ class ArofloConnector
                             //Start for loop at 2, as page 1 has already been retrieved - ceil = rounds up to nearest whole number             
                             for($i=$this->page;$i<=(ceil($total/self::LIMIT)); $i++)
                             {
-                                $pageLimitParams = array('page' => $i,'limit' => self::LIMIT);
-                                $requestParams = array_merge($parameters,$pageLimitParams);
+                                $postfields = $this->getPostfields($zone,$joins,$wheres,$this->page);
+                                $hmac = $this->generateHMAC($method,$postfields);
+                                $header = $this->getHeader($hmac);
 
                                 $this->page = $i;
                                 
                                 $log_additional_call = ApiLog::create([
-                                    'resource' => $url,
+                                    'resource' => $this->getUrl(),
                                     'method' => $method,
-                                    'request' => json_encode($requestParams),
+                                    'request' => $postfields,
                                 ]);
 
-                                $response = Http::withHeaders($this->getHeaders())->retry(3, 500)->acceptJson()->get($url,$requestParams)->body();
-                                $responses[] = $response;
-
+                                $response = Http::withHeaders($header)->retry(3, 500)->get($this->getUrl(),$postfields)->body();
                                 $log_additional_call->response = $response;
                                 $log_additional_call->save();
+                                $json = json_decode($response);
+
+                                //6 = Too many requests
+                                if($json->status === 6) {
+                                    sleep(5);
+                                    return $this->CallAroflo($endpoint,$method,$body);   
+                                } elseif($json->status != 0)
+                                {
+                                    return "Error ".$json->status;
+                                } else {
+                                    $responses[] = $response;
+                                }
                             }
                         }
                     }
@@ -220,7 +188,7 @@ class ArofloConnector
             return $responses;
 
         } catch (RequestException $e) {
-            if ($e->getCode() === 503) {
+            if ($e->getCode() === 503 || $e->getCode() === 429) {
                 // API limit exceeded
                 sleep(5);
                 return $this->CallAroflo($endpoint,$method,$body);
