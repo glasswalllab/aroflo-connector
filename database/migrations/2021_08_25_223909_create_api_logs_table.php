@@ -18,7 +18,7 @@ class CreateApiLogsTable extends Migration
             $table->string('resource', 255);
             $table->string('method', 7);
             $table->text('request')->nullable();
-            $table->longtext('response')->nullable();
+            $table->longText('response')->nullable();
             $table->string('code',3)->nullable();
             $table->timestamps();
         });
