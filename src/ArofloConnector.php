@@ -187,8 +187,9 @@ class ArofloConnector
                                 $log_additional_call->save();
 
                                 //6 = Too many requests
-                                if($status_code === 6) {
+                                if($status_code == 6) {
                                     sleep(5);
+                                    dd("Here");
                                     $this->CallAroflo($endpoint,$method,$body);   
                                 } elseif($status_code != 0)
                                 {
