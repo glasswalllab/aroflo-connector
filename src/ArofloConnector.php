@@ -184,11 +184,14 @@ class ArofloConnector
                                 $log_additional_call = json_decode($response)->status;
                                 $log_additional_call->save();
                                 $json = json_decode($response);
+                                
+                                //prevent more than 2 calls per second
+                                usleep(500000);
 
                                 //6 = Too many requests
                                 if($json->status === 6) {
                                     sleep(5);
-                                    return $this->CallAroflo($endpoint,$method,$body);   
+                                    $this->CallAroflo($endpoint,$method,$body);   
                                 } elseif($json->status != 0)
                                 {
                                     return "Error ".$json->status;
