@@ -15,6 +15,7 @@ class ArofloConnector
     private $page = 2; //Set to 2 as the first call is already completed
     private $authoisation;
     private $afdatetimeutc;
+    private $responses;
 
     public function getPostfields($zone,array $joins, array $wheres,$page,$postxml) {
         $this->setAfdatetimeutc();
@@ -95,7 +96,7 @@ class ArofloConnector
     {  
         $this->setAuthorisation();
  
-        $responses = [];
+        
         
         try
         {
@@ -116,24 +117,35 @@ class ArofloConnector
 
                 switch($method) {
                     case 'POST':
-                        $responses = $baseCall->withBody($postfields,self::CONTENT_TYPE)->post($this->getUrl())->body();
+                        $this->responses = $baseCall->withBody($postfields,self::CONTENT_TYPE)->post($this->getUrl())->body();
                     break;
 
                     case 'PUT':
-                        $responses = $baseCall->withBody($postfields,self::CONTENT_TYPE)->put($this->getUrl())->body();
+                        $this->responses = $baseCall->withBody($postfields,self::CONTENT_TYPE)->put($this->getUrl())->body();
                     break;
 
                     case 'PATCH':
-                        $responses = $baseCall->withBody($postfields,self::CONTENT_TYPE)->patch($this->getUrl())->body();
+                        $this->responses = $baseCall->withBody($postfields,self::CONTENT_TYPE)->patch($this->getUrl())->body();
                     break;
 
                     case 'DELETE':
-                        $responses = $baseCall->withBody($postfields,self::CONTENT_TYPE)->delete($this->getUrl())->body();
+                        $this->responses = $baseCall->withBody($postfields,self::CONTENT_TYPE)->delete($this->getUrl())->body();
                     break;
                 }
-                $log->code = json_decode($responses)->status;
-                $log->response = $responses;
+
+                $status_code = json_decode($this->responses)->status;
+                $log->code = $status_code;
+                $log->response = $this->responses;
                 $log->save();
+
+                //prevent more than 2 calls per second
+                usleep(500000);
+
+                //6 = Too many requests
+                if($status_code == 6) {
+                    sleep(5);
+                    $this->CallAroflo($zone, $joins, $wheres, $postxml, $method, $page);   
+                }
 
             //GET request - check for pagination - return array    
             } elseif($method === 'GET') {
@@ -161,7 +173,7 @@ class ArofloConnector
                     $total = $json->zoneresponse->currentpageresults;
 
                     if(isset($total)) {
-                        $responses[] = $response;
+                        $this->responses[] = $response;
                         if($total > self::LIMIT)
                         {   
                             //Start for loop at 2, as page 1 has already been retrieved - ceil = rounds up to nearest whole number             
@@ -186,16 +198,16 @@ class ArofloConnector
                                 $log_additional_call->code = $status_code;
                                 $log_additional_call->save();
 
+
+                                //prevent more than 2 calls per second
+                                usleep(500000);
+
                                 //6 = Too many requests
                                 if($status_code == 6) {
                                     sleep(5);
-                                    dd("Here");
-                                    $this->CallAroflo($endpoint,$method,$body);   
-                                } elseif($status_code != 0)
-                                {
-                                    return "Error ".$json->status;
+                                    $this->CallAroflo($zone, $joins, $wheres, $postxml, $method, $page);
                                 } else {
-                                    $responses[] = $response;
+                                    $this->responses[] = $response;
                                 }
                             }
                         }
@@ -204,7 +216,7 @@ class ArofloConnector
             }
             
             //return results as an array
-            return $responses;
+            return $this->responses;
 
         } catch (RequestException $e) {
             if ($e->getCode() === 503 || $e->getCode() === 429) {
