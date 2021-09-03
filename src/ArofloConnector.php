@@ -108,6 +108,7 @@ class ArofloConnector
                 $header = $this->getHeader($hmac);
 
                 $log = ApiLog::create([
+                    'service' => 'aroflo',
                     'resource' => $this->getUrl(),
                     'method' => $method,
                     'request' => json_encode($postfields),
@@ -155,6 +156,7 @@ class ArofloConnector
                 $header = $this->getHeader($hmac);
                 
                 $log_first_call = ApiLog::create([
+                    'service' => 'aroflo',
                     'resource' => $this->getUrl(),
                     'method' => $method,
                     'request' => $postfields,
@@ -186,6 +188,7 @@ class ArofloConnector
                                 $this->page = $i;
                                 
                                 $log_additional_call = ApiLog::create([
+                                    'service' => 'aroflo',
                                     'resource' => $this->getUrl(),
                                     'method' => $method,
                                     'request' => $postfields,

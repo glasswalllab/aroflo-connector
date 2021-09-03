@@ -15,6 +15,7 @@ class CreateApiLogsTable extends Migration
     {
         Schema::create('api_logs', function (Blueprint $table) {
             $table->id();
+            $table->string('service');
             $table->string('resource', 255);
             $table->string('method', 7);
             $table->text('request')->nullable();
