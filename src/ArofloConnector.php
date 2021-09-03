@@ -180,19 +180,17 @@ class ArofloConnector
                                 ]);
 
                                 $response = Http::withHeaders($header)->retry(3, 500)->get($this->getUrl(),$postfields)->body();
+
+                                $status_code = json_decode($response)->status;
                                 $log_additional_call->response = $response;
-                                $log_additional_call = json_decode($response)->status;
+                                $log_additional_call->code = $status_code;
                                 $log_additional_call->save();
-                                $json = json_decode($response);
-                                
-                                //prevent more than 2 calls per second
-                                usleep(500000);
 
                                 //6 = Too many requests
-                                if($json->status === 6) {
+                                if($status_code === 6) {
                                     sleep(5);
                                     $this->CallAroflo($endpoint,$method,$body);   
-                                } elseif($json->status != 0)
+                                } elseif($status_code != 0)
                                 {
                                     return "Error ".$json->status;
                                 } else {
